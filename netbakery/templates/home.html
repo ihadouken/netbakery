@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bakery shop</title>
+    <!-- Swiper CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/swiper@7/swiper-bundle.min.css" />
+    <!-- BOXICONS -->
+    <link rel="stylesheet" href="https://unpkg.com/boxicons@2.1.2/css/boxicons.min.css" />
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}" />
+
+    <!-- App JS -->
+    <script src="{{ url_for('static', filename='js/home.js') }}" defer></script>
+
+    <!-- JQuery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+</head>
+
+<!-- list of products for use in order menu -->
+<script>
+    const productList = {{ product_list|tojson|safe }};
+    const userId = {{ session['user_id'] }};
+</script>
+
+<script>
+    function cancelDispatch(dispatchId){
+        const confirmed = confirm("You are about to delete an entire dispatch, continue ?")
+        if (confirmed) {
+            $.post("{{ url_for('db.remove_dispatch') }}",
+                {dispatch_id: dispatchId},
+                function() { location.reload(); });
+        }
+    }
+
+    function updateDispatch(dispatchId, deletedProducts){
+        $.post("{{ url_for('db.update_dispatch') }}", {
+                dispatch_id: dispatchId,
+                deleted_products: JSON.stringify(deletedProducts)
+            },
+            function() { location.reload(); }
+        );
+    }
+
+    function showDispatch(dispatchId){
+        const deletedProducts = [];
+
+        let bagContainer = document.querySelector('.bag-container');
+        bagContainer.innerHTML = `<button onclick="listDispatches()" style="font-size: 20px">&laquo; Back</button><br><br>`;
+        $.getJSON(
+            "{{ url_for('db.get_dispatch') }}",
+            {dispatch_id: dispatchId},
+            function(products){
+                products.forEach(product=>{
+                    let div = document.createElement('div');
+                    div.setAttribute('class', 'ordered-item');
+                    div.innerHTML = `
+                        <img src=${product.image_url} alt="">
+                        <span>${product.name}</span>
+                        <span>${product.price}</span>
+                        <input type="hidden" id="product_id" value="${product.id}" />
+                        <span class="remove-product"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" style="fill: rgba(0, 0, 0, 1);transform: ;msFilter:;"><path d="M16 2H8C4.691 2 2 4.691 2 8v13a1 1 0 0 0 1 1h13c3.309 0 6-2.691 6-6V8c0-3.309-2.691-6-6-6zm4 14c0 2.206-1.794 4-4 4H4V8c0-2.206 1.794-4 4-4h8c2.206 0 4 1.794 4 4v8z"></path><path d="M15.292 7.295 12 10.587 8.708 7.295 7.294 8.709l3.292 3.292-3.292 3.292 1.414 1.414L12 13.415l3.292 3.292 1.414-1.414-3.292-3.292 3.292-3.292z"></path></svg>
+                        </span>`;
+                    bagContainer.appendChild(div);
+                })
+
+                let div = document.createElement('div');
+                div.setAttribute('class', 'buttons');
+                div.innerHTML = `
+                    <style>
+                        .action_btn {
+                            width: 200px;
+                            margin: 0 auto;
+                            display: inline;
+                            font-size: 20px;
+                        }
+                    </style>
+
+                    <br><br>
+                    <div class="action_btn">
+                        <button name="dispatch-edit-save" id="dispatch-edit-save" class="action_btn submit"  value="Save" ">Save</button><br><br><br>
+                    </div>`;
+
+                bagContainer.appendChild(div);
+
+                saveBtn = document.getElementById('dispatch-edit-save');
+                saveBtn.addEventListener('click', function() { updateDispatch(dispatchId, deletedProducts); }, false);
+
+
+                const removeButtons = document.querySelectorAll('.remove-product');
+                removeButtons.forEach((btn=>{
+                    btn.addEventListener('click',(e)=>{
+                        // console.log(e.currentTarget.previousElementSibling.value);
+                        deletedProductId = e.currentTarget.parentElement.children.product_id.value;
+                        deletedProducts.push(deletedProductId);
+                        products.splice(-1, 1);
+                        e.currentTarget.parentElement.remove();
+                        if(products.length <= 0){
+                            cancelDispatch(dispatchId);
+                        }
+                    });
+                }));
+            }
+        );
+    }
+
+    function listDispatches(){
+        {% if dispatch_list is defined and dispatch_list|length > 0 %}
+            let bagContainer = document.querySelector('.bag-container');
+            bagContainer.innerHTML = `
+                <div>
+                    <button id="back-btn" style="font-size: 20px">&laquo; Back</button><br><br>
+                    <table style="border-spacing:20px;border: 1px solid black;">
+                        <tr>
+                            <td>Dispatch ID</td>
+                            <td>Total Items</td>
+                            <td>Total Cost</td>
+                            <td>Time</td>
+                        </tr>
+
+                        {% for dispatch in dispatch_list %}
+                            <tr>
+                                <td>{{ dispatch['id'] }}</td>
+                                <td>{{ dispatch['item_count'] }}</td>
+                                <td>{{ dispatch['cost'] }}</td>
+                                <td>{{ dispatch['time'] }}</td>
+                                <td><button style="font-size: 18px;" onclick="showDispatch({{ dispatch['id'] }})">Show Details</button></td>
+                                <td><button onclick="cancelDispatch({{ dispatch['id'] }})"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" style="fill: rgba(0, 0, 0, 1);transform: ;msFilter:;"><path d="M16 2H8C4.691 2 2 4.691 2 8v13a1 1 0 0 0 1 1h13c3.309 0 6-2.691 6-6V8c0-3.309-2.691-6-6-6zm4 14c0 2.206-1.794 4-4 4H4V8c0-2.206 1.794-4 4-4h8c2.206 0 4 1.794 4 4v8z"></path><path d="M15.292 7.295 12 10.587 8.708 7.295 7.294 8.709l3.292 3.292-3.292 3.292 1.414 1.414L12 13.415l3.292 3.292 1.414-1.414-3.292-3.292 3.292-3.292z"></path></svg></button></td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </div>`;
+            let backBtn = document.getElementById('back-btn');
+            backBtn.addEventListener('click', function() { bagContainer.innerHTML = `<div style='font-size: 18px;text-align:center;'><h2>Nothing to show</h2><p>No Orders Made</p><button onclick="listDispatches()">Show Past Orders</button></div>`; }, false)
+        {% else %}
+            alert('No past orders.');
+        {% endif %}
+    }
+</script>
+
+<script>
+    {% for message in get_flashed_messages() %}
+        alert("{{ message }}")
+    {% endfor %}
+</script>
+
+<body>
+    <!-- HEADER -->
+    <header>
+        <div class="header-inner container">
+            <a href="#" class="logo">Bakery</a>
+            <div class="mobile-toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(0, 0, 0, 1);">
+                    <path d="M4 6h16v2H4zm4 5h12v2H8zm5 5h7v2h-7z"></path>
+                </svg>
+            </div>
+            <ul class="nav">
+                <li  class="active"><a id ="nav__home">Home</a></li>
+                <li><a id="nav__menu">Menu</a></li>
+                <li><a href="{{ url_for('auth.logout') }}">Logout</a></li>
+                <li><a id="nav__about">About</a></li>
+                <li><a id="nav__bag">
+                    <span><i class='bx bxs-shopping-bag'></i></span> 
+                    <span>Bag</span> 
+                    <span class="caret-down"><i class='bx bx-caret-down'></i></span>
+                </a>
+            </li>
+            </ul>
+        </div>
+    </header>
+    <!-- END HEADER -->
+
+<!-- BAG Container -->
+<div class="item-added">
+    Item has been added
+</div>
+<div class="bag-container">
+    <button class="purchase-btn">Purchase</button>
+<!-- <div class="ordered-item">
+    <img src="https://via.placeholder.com/120/" alt="">
+    <span>ITEM NAME</span>
+    <span>ITEM PRICE</span>
+    <span class="delete-order"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" style="fill: rgba(0, 0, 0, 1);transform: ;msFilter:;"><path d="M16 2H8C4.691 2 2 4.691 2 8v13a1 1 0 0 0 1 1h13c3.309 0 6-2.691 6-6V8c0-3.309-2.691-6-6-6zm4 14c0 2.206-1.794 4-4 4H4V8c0-2.206 1.794-4 4-4h8c2.206 0 4 1.794 4 4v8z"></path><path d="M15.292 7.295 12 10.587 8.708 7.295 7.294 8.709l3.292 3.292-3.292 3.292 1.414 1.414L12 13.415l3.292 3.292 1.414-1.414-3.292-3.292 3.292-3.292z"></path></svg></span>
+</div> -->
+</div>
+<!-- END BAG Container -->
+
+    <!-- HERO SLIDER -->
+    <div class="hero" id="hero">
+        <div class="container" id="order">
+            <div class="swiper">
+                <div class="swiper-wrapper">
+
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Blueberry
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (1).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Mulberry
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (2).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Strawberry
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (3).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Caramel
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (4).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Milk
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (5).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Lavender
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (6).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Rasberries
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (7).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Valentine
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (8).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                    <!-- slide -->
+                    <div class="swiper-slide">
+                        <div class="hero__slide">
+                            <div class="hero__slide__txt">
+                                Cranberries
+                            </div>
+                            <div class="hero__slide__img">
+                                <img src="{{ url_for('static', filename='img/cupcake (9).png') }}" alt="">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- end slide -->
+                </div>
+                <div class="swiper-pagination"></div>
+                <div class="swiper-button-prev"></div>
+                <div class="swiper-button-next"></div>
+            </div>
+        </div>
+    </div>
+    <!-- END HERO SLIDER -->
+
+    <!-- MENU ARTICLE SECTION -->
+    <div class="section" id="menu">
+        <div class="container">
+            <div class="section__header">
+                <span class="section__header--menu">MENU</span>
+            </div>
+            <div class="section__content">
+                <div class="product-grid">
+
+                </div>
+
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+    </div>
+    <!-- END MENU ARTICLE SECTION -->
+
+    <!-- ABOUT SECTION -->
+    <div class="section" id="about">
+        <div class="container">
+            <div class="about">
+                <div class="about__img">
+                    <img src="{{ url_for('static', filename='img/cupcake (10).png') }}" alt="">
+                </div>
+                <div class="about__info">
+                    <div class="section__header">Welcome To</div>
+                    <h2 class="about__info__title"><span class="txt-main">Net Bakery</span></h2>
+                    <p class="about__info__description">
+                        This is the final project for my last year of B.Tech (Bachelour's in Computer Applications). The website's main color is inspired by the Pantone Color of the Year 2022 - Veri Peri, a dynamic ‘periwinkle blue hue with a vivifying violet-red undertone’.
+                    </p>
+                    <p class="about__info__description description-2">
+                        I still keep exploring new technologies regularly, and I will apply those technologies to improve this project in the near future.
+                        I hope this website, along with other projects I’ve made, help me level up my web development skills. </p>
+                    <div class="about__info__btn">
+                        <button class="btn btn-left">Read more</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END ABOUT SECTION -->
+
+    <!-- FOOTER SECTION -->
+    <div class="section section__footer">
+        <div class="container">
+            <div class="footer">
+                <div class="footer__img">
+                    <img src="{{ url_for('static', filename='img/cupcake.jpg') }}" alt="">
+                </div>
+                <div class="footer__menus">
+                    <ul class="footer__menus__col">
+                        <h3 id="about-us-btn">Credits</h3>
+                    </ul>
+                    <div class="about-us">
+                        <h3>Rahul Sharma:</h3> Student pursuing bachelor's degree in Computer Science and Engineering at Guru Nanak Dev University, Amritsar. <br>
+                    </div>
+                    <div class="company"><span class="txt-main">Net Bakery</div>
+                    <img src="{{ url_for('static', filename='img/cupcake (11).png') }}" alt="">
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END FOOTER SECTION -->
+
+    <div class="mobile-overlay"></div>
+
+    <!-- Swiper JS -->
+    <script src="{{ url_for('static', filename='js/swiper-bundle.min.js') }}"></script>
+
+</body>
+
+</html>
